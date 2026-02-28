@@ -9,6 +9,7 @@ import MenuTabs from './components/MenuTabs';
 import GallerySwiper from './components/GallerySwiper';
 import Footer from './components/Footer';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
+import { Analytics } from '@vercel/analytics/react';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -64,6 +65,7 @@ function App() {
 
       <Footer />
       <FloatingWhatsApp />
+      <Analytics />
     </div>
   );
 }
