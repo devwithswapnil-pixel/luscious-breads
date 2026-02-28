@@ -206,14 +206,16 @@ export default function HeroOverview() {
                             <div className="absolute inset-0 h-full w-full bg-primary-dark scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300 ease-out z-0"></div>
                         </button>
 
-                        <button
-                            className="cursor-scale group relative px-8 py-4 bg-transparent border border-white/50 text-white overflow-hidden rounded-full font-medium tracking-wide transition-colors hover:border-white"
+                        <a
+                            href="tel:+918791907077"
+                            title="Call us: 087919 07077"
+                            className="inline-block cursor-scale group relative px-8 py-4 bg-transparent border border-white/50 text-white overflow-hidden rounded-full font-medium tracking-wide transition-colors hover:border-white"
                         >
                             <span className="relative z-10 flex items-center gap-2">
                                 Reserve a Table
                             </span>
                             <div className="absolute inset-0 h-full w-full bg-white/10 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300 ease-out z-0"></div>
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>
