@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import * as THREE from 'three';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -15,39 +14,6 @@ const SLIDES = [
     { title: "Reserve a Table", description: "Open 10 AM onwards · Mussoorie, Dehradun", media: "https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=1920" }
 ];
 
-const vertexShader = `
-varying vec2 vUv;
-void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const fragmentShader = `
-uniform float progress;
-uniform sampler2D texture1;
-uniform sampler2D texture2;
-varying vec2 vUv;
-
-void main() {
-    vec2 uv = vUv;
-
-    // Glass ripple effect
-    float p = progress;
-    float wave = sin(uv.y * 20.0 + p * 10.0) * 0.05 * sin(p * 3.1415);
-    vec2 uv1 = uv + vec2(wave);
-    vec2 uv2 = uv + vec2(wave);
-    
-    // X-axis smooth sweep
-    float wipe = smoothstep(0.0, 1.0, (progress*2.0 + uv.x - 1.0));
-    
-    vec4 t1 = texture2D(texture1, uv1);
-    vec4 t2 = texture2D(texture2, uv2);
-
-    gl_FragColor = mix(t1, t2, wipe);
-}
-`;
-
 function splitTitle(title: string) {
     const parts = title.split(' ');
     if (parts.length > 1) {
@@ -59,7 +25,6 @@ function splitTitle(title: string) {
 
 export default function HeroOverview() {
     const container = useRef<HTMLDivElement>(null);
-    const canvasContainer = useRef<HTMLDivElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
 
     const { scrollYProgress } = useScroll({
@@ -83,103 +48,66 @@ export default function HeroOverview() {
         });
     }, []);
 
-    // WebGL Canvas Effect Setup
+    // GSAP Slider Effect Setup
     useEffect(() => {
-        if (!canvasContainer.current) return;
-
-        let w = canvasContainer.current.clientWidth;
-        let h = canvasContainer.current.clientHeight;
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.OrthographicCamera(w / -2, w / 2, h / 2, h / -2, 0.1, 1000);
-        camera.position.z = 1;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(w, h);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        canvasContainer.current.appendChild(renderer.domElement);
-
-        const textureLoader = new THREE.TextureLoader();
-        const textures = SLIDES.map((s) => textureLoader.load(s.media));
-
-        const material = new THREE.ShaderMaterial({
-            vertexShader,
-            fragmentShader,
-            uniforms: {
-                progress: { value: 0.0 },
-                texture1: { value: textures[0] },
-                texture2: { value: textures[1] },
-            }
-        });
-
-        const geometry = new THREE.PlaneGeometry(w, h);
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-
         let currentIndex = 0;
-        let nextIndex = 1;
         let transitionTimer: ReturnType<typeof setTimeout>;
-        let isTransitioning = false;
-
-        const handleResize = () => {
-            if (!canvasContainer.current) return;
-            w = canvasContainer.current.clientWidth;
-            h = canvasContainer.current.clientHeight;
-            camera.left = w / -2;
-            camera.right = w / 2;
-            camera.top = h / 2;
-            camera.bottom = h / -2;
-            camera.updateProjectionMatrix();
-            renderer.setSize(w, h);
-
-            // Recreate geometry to match new dimensions
-            geometry.dispose();
-            mesh.geometry = new THREE.PlaneGeometry(w, h);
-        };
-        window.addEventListener('resize', handleResize);
+        let tl: gsap.core.Timeline;
 
         const transitionSlide = () => {
-            if (isTransitioning) return;
-            isTransitioning = true;
-            nextIndex = (currentIndex + 1) % SLIDES.length;
-
-            material.uniforms.texture1.value = textures[currentIndex];
-            material.uniforms.texture2.value = textures[nextIndex];
-            material.uniforms.progress.value = 0.0;
+            const nextIndex = (currentIndex + 1) % SLIDES.length;
 
             setActiveIndex(nextIndex);
 
-            gsap.to(material.uniforms.progress, {
-                value: 1.0,
-                duration: 1.5,
-                ease: "power2.inOut",
+            tl = gsap.timeline({
                 onComplete: () => {
                     currentIndex = nextIndex;
-                    material.uniforms.texture1.value = textures[currentIndex];
-                    material.uniforms.progress.value = 0.0;
-                    isTransitioning = false;
-                    transitionTimer = setTimeout(transitionSlide, 4000);
+                    transitionTimer = setTimeout(transitionSlide, 5000);
                 }
             });
+
+            const currentImg = container.current?.querySelector(`.slide-bg-${currentIndex}`);
+            const nextImg = container.current?.querySelector(`.slide-bg-${nextIndex}`);
+            const bloom = container.current?.querySelector('.bloom-overlay');
+
+            if (!currentImg || !nextImg || !bloom) {
+                transitionTimer = setTimeout(transitionSlide, 5000);
+                return;
+            }
+
+            gsap.set(nextImg, { opacity: 0, zIndex: 1 });
+            gsap.set(currentImg, { zIndex: 0 });
+
+            // 1. Crossfade
+            tl.to(nextImg, {
+                opacity: 1,
+                duration: 1.5,
+                ease: "power2.inOut"
+            }, 0);
+
+            // 2. Warm Color Bloom
+            gsap.set(bloom, { scale: 0, opacity: 0 });
+            tl.to(bloom, {
+                scale: 1.2,
+                opacity: 1,
+                duration: 0.75,
+                ease: "power2.in"
+            }, 0)
+                .to(bloom, {
+                    opacity: 0,
+                    duration: 0.75,
+                    ease: "power2.out"
+                }, 0.75);
+
+            tl.set(currentImg, { opacity: 0 }, 1.5);
         };
 
         // Start slider
-        transitionTimer = setTimeout(transitionSlide, 4000);
-
-        const render = () => {
-            renderer.render(scene, camera);
-            requestAnimationFrame(render);
-        };
-        render();
+        transitionTimer = setTimeout(transitionSlide, 5000);
 
         return () => {
             clearTimeout(transitionTimer);
-            window.removeEventListener('resize', handleResize);
-            if (canvasContainer.current && canvasContainer.current.contains(renderer.domElement)) {
-                canvasContainer.current.removeChild(renderer.domElement);
-            }
-            renderer.dispose();
-            scene.clear();
+            if (tl) tl.kill();
         };
     }, []);
 
@@ -195,13 +123,30 @@ export default function HeroOverview() {
             />
 
             <motion.div style={{ y, opacity }} className="absolute inset-0 z-0">
+                {SLIDES.map((slide, i) => (
+                    <div
+                        key={i}
+                        className={`slide-bg-${i} absolute top-0 left-0 w-full h-full bg-cover bg-center`}
+                        style={{
+                            backgroundImage: `url("${slide.media}")`,
+                            opacity: i === 0 ? 1 : 0,
+                            zIndex: i === 0 ? 1 : 0
+                        }}
+                    />
+                ))}
+
+                {/* Bloom Overlay */}
                 <div
-                    ref={canvasContainer}
-                    className="absolute top-0 left-0 w-full h-full"
-                    style={{ zIndex: 0 }}
+                    className="bloom-overlay absolute inset-0 z-[5] pointer-events-none origin-center mix-blend-screen"
+                    style={{
+                        background: 'radial-gradient(circle, rgba(212,168,67,0.3) 0%, rgba(212,168,67,0) 70%)',
+                        opacity: 0,
+                        transform: 'scale(0)'
+                    }}
                 />
+
                 {/* Specific Warm Dark Overlay Requested */}
-                <div className="absolute inset-0 z-10" style={{ backgroundColor: 'rgba(44, 26, 14, 0.45)' }} />
+                <div className="absolute inset-0 z-10 pointer-events-none" style={{ backgroundColor: 'rgba(44, 26, 14, 0.45)' }} />
             </motion.div>
 
             <div className="relative flex flex-col items-center justify-center h-full text-white px-4 z-[2]">
